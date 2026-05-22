@@ -2,10 +2,12 @@ import { mat4, type Mat4 } from "wgpu-matrix";
 import { CameraComponent } from "../components/CameraComponent";
 import { MeshComponent } from "../components/MeshComponent";
 import { TransformComponent } from "../components/TransformComponent";
+import { engineConsole } from "../runtime/EngineConsole";
 import type { Scene } from "../scene/Scene";
 import shaderSource from "./shader.wgsl?raw";
 
 const vertexStride = 5 * Float32Array.BYTES_PER_ELEMENT;
+const clearColor: GPUColor = { r: 0.08, g: 0.1, b: 0.13, a: 1 };
 
 type MeshResource = {
   vertexBuffer: GPUBuffer;
@@ -24,12 +26,14 @@ export class WebGpuRenderer {
 
   async initialize(): Promise<void> {
     if (!navigator.gpu) {
+      engineConsole.error("WebGPU is not available in this browser", "Renderer");
       throw new Error("WebGPU is not available in this browser.");
     }
 
     const adapter = await navigator.gpu.requestAdapter();
 
     if (!adapter) {
+      engineConsole.error("No WebGPU adapter was found", "Renderer");
       throw new Error("No WebGPU adapter was found.");
     }
 
@@ -37,11 +41,15 @@ export class WebGpuRenderer {
     const context = this.canvas.getContext("webgpu");
 
     if (!context) {
+      engineConsole.error("Could not create a WebGPU canvas context", "Renderer");
       throw new Error("Could not create a WebGPU canvas context.");
     }
 
     const format = navigator.gpu.getPreferredCanvasFormat();
     context.configure({ device, format, alphaMode: "opaque" });
+    engineConsole.info("WebGPU renderer initialized", "Renderer", {
+      format,
+    });
 
     this.device = device;
     this.context = context;
@@ -115,7 +123,7 @@ export class WebGpuRenderer {
       colorAttachments: [
         {
           view: this.context.getCurrentTexture().createView(),
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1 },
+          clearValue: clearColor,
           loadOp: "clear",
           storeOp: "store",
         },
