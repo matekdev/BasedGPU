@@ -2,7 +2,9 @@ import { mat4, type Mat4, type Vec3, vec3 } from "wgpu-matrix";
 import type { Component } from "./Component";
 
 export class TransformComponent implements Component {
-  readonly type = "transform";
+  static readonly componentType = "transform";
+
+  readonly componentType = TransformComponent.componentType;
   readonly position = vec3.create(0, 0, 0);
   readonly rotation = vec3.create(0, 0, 0);
   readonly scale = vec3.create(1, 1, 1);

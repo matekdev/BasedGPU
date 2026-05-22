@@ -1,7 +1,9 @@
 import type { Component } from "./Component";
 
 export class MeshComponent implements Component {
-  readonly type = "mesh";
+  static readonly componentType = "mesh";
+
+  readonly componentType = MeshComponent.componentType;
 
   constructor(readonly vertices: Float32Array) {}
 

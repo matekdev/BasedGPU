@@ -122,13 +122,9 @@ export class WebGpuRenderer {
     renderPass.setPipeline(this.pipeline);
     renderPass.setBindGroup(0, this.uniformBindGroup);
 
-    for (const entity of scene.findEntities("mesh", "transform")) {
-      const mesh = entity.get<MeshComponent>("mesh");
-      const transform = entity.get<TransformComponent>("transform");
-
-      if (!mesh || !transform) {
-        continue;
-      }
+    for (const entity of scene.findEntities(MeshComponent, TransformComponent)) {
+      const mesh = entity.require(MeshComponent);
+      const transform = entity.require(TransformComponent);
 
       const resource = this.getMeshResource(mesh);
       this.device.queue.writeBuffer(

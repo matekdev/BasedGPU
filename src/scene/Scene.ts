@@ -1,3 +1,4 @@
+import type { ComponentType } from "../components/Component";
 import type { Entity } from "./Entity";
 
 export class Scene {
@@ -8,7 +9,7 @@ export class Scene {
     return entity;
   }
 
-  findEntities(...componentTypes: string[]): Entity[] {
+  findEntities(...componentTypes: ComponentType[]): Entity[] {
     return Array.from(this.entities).filter((entity) =>
       componentTypes.every((componentType) => entity.has(componentType)),
     );
