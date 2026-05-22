@@ -1,8 +1,9 @@
 import type { Scene } from "../scene/Scene";
 import { CameraComponent } from "../components/CameraComponent";
 import { TransformComponent } from "../components/TransformComponent";
+import { radiansToDegrees } from "../math/angles";
 
-const maxPitch = Math.PI / 2 - 0.01;
+const maxPitch = 90 - 0.01 * radiansToDegrees;
 
 export class CameraController {
   private readonly pressedKeys = new Set<string>();
@@ -16,7 +17,7 @@ export class CameraController {
   private lookSmoothing = 24;
   private movementSmoothing = 12;
   private moveSpeed = 3;
-  private mouseSensitivity = 0.002;
+  private mouseSensitivity = 0.002 * radiansToDegrees;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,

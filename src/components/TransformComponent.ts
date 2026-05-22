@@ -1,4 +1,5 @@
 import { mat4, type Mat4, type Vec3, vec3 } from "wgpu-matrix";
+import { degreesToRadians } from "../math/angles";
 import type { Component, ComponentInspectorField } from "./Component";
 
 export class TransformComponent implements Component {
@@ -12,14 +13,14 @@ export class TransformComponent implements Component {
   getInspectorFields(): ComponentInspectorField[] {
     return [
       this.createVectorField("Position", this.position, 0.1),
-      this.createVectorField("Rotation", this.rotation, 0.1),
+      this.createVectorField("Rotation", this.rotation, 1),
       this.createVectorField("Scale", this.scale, 0.1),
     ];
   }
 
   getForwardDirection(): Vec3 {
-    const pitch = this.rotation[0];
-    const yaw = this.rotation[1];
+    const pitch = degreesToRadians(this.rotation[0]);
+    const yaw = degreesToRadians(this.rotation[1]);
     const pitchCosine = Math.cos(pitch);
 
     return vec3.create(
@@ -30,14 +31,15 @@ export class TransformComponent implements Component {
   }
 
   getRightDirection(): Vec3 {
-    return vec3.create(Math.cos(this.rotation[1]), 0, Math.sin(this.rotation[1]));
+    const yaw = degreesToRadians(this.rotation[1]);
+    return vec3.create(Math.cos(yaw), 0, Math.sin(yaw));
   }
 
   get matrix(): Mat4 {
     const transform = mat4.translation(this.position);
-    mat4.rotateX(transform, this.rotation[0], transform);
-    mat4.rotateY(transform, this.rotation[1], transform);
-    mat4.rotateZ(transform, this.rotation[2], transform);
+    mat4.rotateX(transform, degreesToRadians(this.rotation[0]), transform);
+    mat4.rotateY(transform, degreesToRadians(this.rotation[1]), transform);
+    mat4.rotateZ(transform, degreesToRadians(this.rotation[2]), transform);
     mat4.scale(transform, this.scale as Vec3, transform);
     return transform;
   }
