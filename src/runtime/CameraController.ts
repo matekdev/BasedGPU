@@ -7,6 +7,7 @@ const maxPitch = Math.PI / 2 - 0.01;
 export class CameraController {
   private readonly pressedKeys = new Set<string>();
   private readonly velocity = new Float32Array(3);
+  private isNavigating = false;
   private hasTargetRotation = false;
   private pendingLookPitch = 0;
   private pendingLookYaw = 0;
@@ -21,10 +22,13 @@ export class CameraController {
     private readonly canvas: HTMLCanvasElement,
     private readonly scene: Scene,
   ) {
-    canvas.addEventListener("click", this.lockPointer);
+    canvas.addEventListener("contextmenu", this.preventContextMenu);
+    canvas.addEventListener("mousedown", this.handleMouseDown);
     window.addEventListener("keydown", this.handleKeyDown);
     window.addEventListener("keyup", this.handleKeyUp);
+    window.addEventListener("mouseup", this.handleMouseUp);
     window.addEventListener("mousemove", this.handleMouseMove);
+    document.addEventListener("pointerlockchange", this.handlePointerLockChange);
   }
 
   update(deltaSeconds: number): void {
@@ -39,10 +43,26 @@ export class CameraController {
 
     const transform = cameraEntity.require(TransformComponent);
     this.updateLook(transform, deltaSeconds);
+    this.updateMovement(transform, deltaSeconds);
+  }
 
+  private updateMovement(
+    transform: TransformComponent,
+    deltaSeconds: number,
+  ): void {
     const forward = transform.getForwardDirection();
     const right = transform.getRightDirection();
     const targetVelocity = new Float32Array(3);
+
+    if (!this.isNavigating) {
+      lerpVelocity(
+        this.velocity,
+        targetVelocity,
+        1 - Math.exp(-this.movementSmoothing * deltaSeconds),
+      );
+      move(transform.position, this.velocity, deltaSeconds);
+      return;
+    }
 
     if (this.pressedKeys.has("KeyW")) {
       addDirection(targetVelocity, forward, 1);
@@ -106,11 +126,47 @@ export class CameraController {
     );
   }
 
-  private readonly lockPointer = (): void => {
+  private readonly handleMouseDown = (event: MouseEvent): void => {
+    if (event.button !== 2) {
+      return;
+    }
+
+    event.preventDefault();
+    this.isNavigating = true;
     this.canvas.requestPointerLock();
   };
 
+  private readonly handleMouseUp = (event: MouseEvent): void => {
+    if (event.button !== 2) {
+      return;
+    }
+
+    this.isNavigating = false;
+    this.pressedKeys.clear();
+
+    if (document.pointerLockElement === this.canvas) {
+      document.exitPointerLock();
+    }
+  };
+
+  private readonly preventContextMenu = (event: MouseEvent): void => {
+    event.preventDefault();
+  };
+
+  private readonly handlePointerLockChange = (): void => {
+    if (document.pointerLockElement === this.canvas) {
+      return;
+    }
+
+    this.isNavigating = false;
+    this.pressedKeys.clear();
+  };
+
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (!this.isNavigating) {
+      return;
+    }
+
     this.pressedKeys.add(event.code);
   };
 
