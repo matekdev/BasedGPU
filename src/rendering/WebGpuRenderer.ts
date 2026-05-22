@@ -112,7 +112,7 @@ export class WebGpuRenderer {
       colorAttachments: [
         {
           view: this.context.getCurrentTexture().createView(),
-          clearValue: { r: 0.017, g: 0.078, b: 0.059, a: 1 },
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1 },
           loadOp: "clear",
           storeOp: "store",
         },

@@ -3,9 +3,11 @@ import type { Scene } from "../scene/Scene";
 
 export class Application {
   private readonly renderer: WebGpuRenderer;
-  private lastFrameTime = 0;
 
-  constructor(canvas: HTMLCanvasElement, private readonly scene: Scene) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    private readonly scene: Scene,
+  ) {
     this.renderer = new WebGpuRenderer(canvas);
   }
 
@@ -14,11 +16,7 @@ export class Application {
     requestAnimationFrame(this.tick);
   }
 
-  private readonly tick = (time: number): void => {
-    const deltaTime = this.lastFrameTime ? (time - this.lastFrameTime) / 1000 : 0;
-    this.lastFrameTime = time;
-
-    this.scene.update(deltaTime);
+  private readonly tick = (_: number): void => {
     this.renderer.render(this.scene);
     requestAnimationFrame(this.tick);
   };
