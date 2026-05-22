@@ -1,8 +1,14 @@
+import { CameraComponent } from "../components/CameraComponent";
 import type { ComponentType } from "../components/Component";
-import type { Entity } from "./Entity";
+import { TransformComponent } from "../components/TransformComponent";
+import { Entity } from "./Entity";
 
 export class Scene {
   private readonly entities = new Set<Entity>();
+
+  constructor() {
+    this.addDefaultCamera();
+  }
 
   add(entity: Entity): Entity {
     this.entities.add(entity);
@@ -13,5 +19,13 @@ export class Scene {
     return Array.from(this.entities).filter((entity) =>
       componentTypes.every((componentType) => entity.has(componentType)),
     );
+  }
+
+  private addDefaultCamera(): void {
+    const camera = new Entity("Camera");
+    const transform = camera.add(new TransformComponent());
+    transform.position[2] = 2;
+    camera.add(new CameraComponent());
+    this.add(camera);
   }
 }

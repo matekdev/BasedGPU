@@ -1,3 +1,5 @@
+import { mat4, type Mat4 } from "wgpu-matrix";
+import { CameraComponent } from "../components/CameraComponent";
 import { MeshComponent } from "../components/MeshComponent";
 import { TransformComponent } from "../components/TransformComponent";
 import type { Scene } from "../scene/Scene";
@@ -107,6 +109,7 @@ export class WebGpuRenderer {
 
     this.resizeCanvas();
 
+    const viewProjection = this.getViewProjection(scene);
     const encoder = this.device.createCommandEncoder();
     const renderPass = encoder.beginRenderPass({
       colorAttachments: [
@@ -125,12 +128,16 @@ export class WebGpuRenderer {
     for (const entity of scene.findEntities(MeshComponent, TransformComponent)) {
       const mesh = entity.require(MeshComponent);
       const transform = entity.require(TransformComponent);
+      const modelViewProjection = mat4.multiply(
+        viewProjection,
+        transform.matrix,
+      );
 
       const resource = this.getMeshResource(mesh);
       this.device.queue.writeBuffer(
         this.uniformBuffer,
         0,
-        asGpuBufferSource(transform.matrix),
+        asGpuBufferSource(modelViewProjection),
       );
       renderPass.setVertexBuffer(0, resource.vertexBuffer);
       renderPass.draw(resource.vertexCount);
@@ -138,6 +145,22 @@ export class WebGpuRenderer {
 
     renderPass.end();
     this.device.queue.submit([encoder.finish()]);
+  }
+
+  private getViewProjection(scene: Scene): Mat4 {
+    const cameraEntity = scene.findEntities(
+      CameraComponent,
+      TransformComponent,
+    )[0];
+
+    if (!cameraEntity) {
+      return mat4.identity();
+    }
+
+    const camera = cameraEntity.require(CameraComponent);
+    const transform = cameraEntity.require(TransformComponent);
+    const aspectRatio = this.canvas.width / this.canvas.height;
+    return camera.getViewProjection(transform, aspectRatio);
   }
 
   private getMeshResource(mesh: MeshComponent): MeshResource {
