@@ -71,7 +71,7 @@
 </script>
 
 <section
-  class="fixed right-0 bottom-0 left-0 z-10 border-t bg-background/95 shadow-2xl backdrop-blur"
+  class="fixed right-3 bottom-3 left-3 z-10 overflow-hidden rounded-xl border bg-background/95 shadow-2xl backdrop-blur"
 >
   <div class="flex h-10 items-center justify-between gap-3 border-b px-3">
     <div class="flex min-w-0 items-center gap-2">

@@ -3,6 +3,7 @@
   import { ModeWatcher } from "mode-watcher";
   import "./styles.css";
   import EntityHierarchy from "$lib/components/EntityHierarchy.svelte";
+  import EntityInspector from "$lib/components/EntityInspector.svelte";
   import EngineConsole from "$lib/components/EngineConsole.svelte";
   import { MeshComponent } from "./components/MeshComponent";
   import { TransformComponent } from "./components/TransformComponent";
@@ -13,6 +14,7 @@
   let canvasElement: HTMLCanvasElement;
   let scene = $state<Scene>();
   let entities = $state<Entity[]>([]);
+  let selectedEntity = $state<Entity>();
 
   onMount(() => {
     scene = new Scene();
@@ -22,6 +24,7 @@
     triangle.add(MeshComponent.triangle());
     scene.add(triangle);
     entities = scene.getEntities();
+    selectedEntity = triangle;
 
     const application = new Application(canvasElement, scene);
     application.start();
@@ -30,5 +33,6 @@
 
 <ModeWatcher />
 <canvas bind:this={canvasElement} class="viewport"></canvas>
-<EntityHierarchy {entities} />
+<EntityHierarchy {entities} bind:selectedEntity />
+<EntityInspector entity={selectedEntity} />
 <EngineConsole />

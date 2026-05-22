@@ -4,11 +4,13 @@
   import { Badge } from "$lib/components/ui/badge/index.js";
   import type { Entity } from "../../scene/Entity";
 
-  let { entities = [] }: { entities: Entity[] } = $props();
-  let selectedEntityName = $state<string>();
+  let {
+    entities = [],
+    selectedEntity = $bindable(),
+  }: { entities: Entity[]; selectedEntity?: Entity } = $props();
 
   function selectEntity(entity: Entity) {
-    selectedEntityName = entity.name;
+    selectedEntity = entity;
   }
 
   const visibleEntities = $derived(
@@ -16,7 +18,7 @@
   );
 </script>
 
-<aside class="fixed top-0 bottom-0 left-0 z-10 w-64 border-r bg-background/95 backdrop-blur">
+<aside class="fixed top-3 bottom-60 left-3 z-10 w-64 overflow-hidden rounded-xl border bg-background/95 shadow-2xl backdrop-blur">
   <div class="flex h-10 items-center justify-between gap-3 border-b px-3">
     <div class="flex min-w-0 items-center gap-2">
       <Layers class="size-4 text-muted-foreground" />
@@ -29,7 +31,7 @@
     {#each visibleEntities as entity (entity.name)}
       <button
         class="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-muted"
-        class:bg-muted={selectedEntityName === entity.name}
+        class:bg-muted={selectedEntity === entity}
         onclick={() => selectEntity(entity)}
       >
         <Box class="size-3.5 shrink-0 text-muted-foreground" />
