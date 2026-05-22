@@ -21,6 +21,10 @@ export class Scene {
     );
   }
 
+  getEntities(): Entity[] {
+    return Array.from(this.entities);
+  }
+
   private addDefaultCamera(): void {
     const camera = new Entity("Camera");
     const transform = camera.add(new TransformComponent());
