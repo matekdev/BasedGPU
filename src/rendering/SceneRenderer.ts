@@ -1,6 +1,6 @@
 import { mat4, type Mat4 } from "wgpu-matrix";
 import { CameraComponent } from "../components/CameraComponent";
-import { MeshComponent } from "../components/MeshComponent";
+import { MeshComponent, meshVertexFloatCount } from "../components/MeshComponent";
 import { TransformComponent } from "../components/TransformComponent";
 import type { Scene } from "../scene/Scene";
 import { GpuBuffer } from "./GpuBuffer";
@@ -8,7 +8,7 @@ import { GpuMesh } from "./GpuMesh";
 import { Renderer } from "./Renderer";
 import shaderSource from "../shaders/shader.wgsl?raw";
 
-const vertexStride = 6 * Float32Array.BYTES_PER_ELEMENT;
+const vertexStride = meshVertexFloatCount * Float32Array.BYTES_PER_ELEMENT;
 const objectUniformByteSize = 16 * Float32Array.BYTES_PER_ELEMENT;
 
 export class SceneRenderer {
@@ -60,6 +60,21 @@ export class SceneRenderer {
                 shaderLocation: 1,
                 offset: 3 * Float32Array.BYTES_PER_ELEMENT,
                 format: "float32x3",
+              },
+              {
+                shaderLocation: 2,
+                offset: 6 * Float32Array.BYTES_PER_ELEMENT,
+                format: "float32x4",
+              },
+              {
+                shaderLocation: 3,
+                offset: 10 * Float32Array.BYTES_PER_ELEMENT,
+                format: "float32x2",
+              },
+              {
+                shaderLocation: 4,
+                offset: 12 * Float32Array.BYTES_PER_ELEMENT,
+                format: "float32x4",
               },
             ],
           },

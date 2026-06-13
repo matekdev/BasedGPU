@@ -1,11 +1,14 @@
 struct VertexInput {
   @location(0) position: vec3f,
-  @location(1) color: vec3f,
+  @location(1) normal: vec3f,
+  @location(2) tangent: vec4f,
+  @location(3) uv: vec2f,
+  @location(4) color: vec4f,
 };
 
 struct VertexOutput {
   @builtin(position) position: vec4f,
-  @location(0) color: vec3f,
+  @location(0) color: vec4f,
 };
 
 struct ObjectUniform {
@@ -24,5 +27,5 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
 
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-  return vec4f(input.color, 1.0);
+  return input.color;
 }

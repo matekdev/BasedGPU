@@ -51,8 +51,8 @@ The project should render real assets, not hardcoded geometry.
 
 Build:
 
-- [ ] Add glTF 2.0 loading
-- [ ] Support vertex attributes for position, normal, tangent, UV, and color
+- [x] Add glTF 2.0 loading
+- [x] Support vertex attributes for position, normal, tangent, UV, and color
 - [ ] Add index buffers
 - [ ] Add texture loading
 - [ ] Add sampler creation
