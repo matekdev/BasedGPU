@@ -81,7 +81,3 @@ export class Renderer {
     };
   }
 }
-
-export function asGpuBufferSource(data: Float32Array): GPUAllowSharedBufferSource {
-  return data as unknown as GPUAllowSharedBufferSource;
-}

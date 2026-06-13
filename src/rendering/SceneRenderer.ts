@@ -3,20 +3,21 @@ import { CameraComponent } from "../components/CameraComponent";
 import { MeshComponent } from "../components/MeshComponent";
 import { TransformComponent } from "../components/TransformComponent";
 import type { Scene } from "../scene/Scene";
-import { Renderer, asGpuBufferSource } from "./Renderer";
+import { GpuBuffer } from "./GpuBuffer";
+import { Renderer } from "./Renderer";
 import shaderSource from "../shaders/shader.wgsl?raw";
 
 const vertexStride = 5 * Float32Array.BYTES_PER_ELEMENT;
 
 type MeshResource = {
-  vertexBuffer: GPUBuffer;
+  vertexBuffer: GpuBuffer;
   vertexCount: number;
 };
 
 export class SceneRenderer {
   private renderer?: Renderer;
   private pipeline?: GPURenderPipeline;
-  private uniformBuffer?: GPUBuffer;
+  private uniformBuffer?: GpuBuffer;
   private uniformBindGroup?: GPUBindGroup;
   private readonly meshResources = new WeakMap<MeshComponent, MeshResource>();
 
@@ -27,10 +28,7 @@ export class SceneRenderer {
     const { device, format } = renderer;
 
     this.renderer = renderer;
-    this.uniformBuffer = device.createBuffer({
-      size: 16 * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+    this.uniformBuffer = GpuBuffer.uniform(device, 16 * Float32Array.BYTES_PER_ELEMENT);
 
     const bindGroupLayout = device.createBindGroupLayout({
       entries: [
@@ -44,7 +42,7 @@ export class SceneRenderer {
 
     this.uniformBindGroup = device.createBindGroup({
       layout: bindGroupLayout,
-      entries: [{ binding: 0, resource: { buffer: this.uniformBuffer } }],
+      entries: [{ binding: 0, resource: { buffer: this.uniformBuffer.gpu } }],
     });
 
     const shaderModule = device.createShaderModule({ code: shaderSource });
@@ -100,12 +98,8 @@ export class SceneRenderer {
       const modelViewProjection = mat4.multiply(viewProjection, transform.matrix);
 
       const resource = this.getMeshResource(mesh);
-      renderer.device.queue.writeBuffer(
-        this.uniformBuffer,
-        0,
-        asGpuBufferSource(modelViewProjection),
-      );
-      renderPass.setVertexBuffer(0, resource.vertexBuffer);
+      this.uniformBuffer.write(modelViewProjection);
+      renderPass.setVertexBuffer(0, resource.vertexBuffer.gpu);
       renderPass.draw(resource.vertexCount);
     }
 
@@ -130,15 +124,11 @@ export class SceneRenderer {
 
     if (!this.renderer) throw new Error("Renderer is not initialized.");
 
-    const { device } = this.renderer;
-    const vertexBuffer = device.createBuffer({
-      size: mesh.vertices.byteLength,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
+    const resource = {
+      vertexBuffer: GpuBuffer.vertex(this.renderer.device, mesh.vertices),
+      vertexCount: mesh.vertices.length / 5,
+    };
 
-    device.queue.writeBuffer(vertexBuffer, 0, asGpuBufferSource(mesh.vertices));
-
-    const resource = { vertexBuffer, vertexCount: mesh.vertices.length / 5 };
     this.meshResources.set(mesh, resource);
     return resource;
   }
