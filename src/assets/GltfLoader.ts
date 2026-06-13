@@ -9,6 +9,7 @@ import {
 import { mat4, type Mat4 } from "wgpu-matrix";
 import { MeshComponent } from "../components/MeshComponent";
 import { TransformComponent } from "../components/TransformComponent";
+import { composeMatrix, copyMat4 } from "../math/transforms";
 import { engineConsole } from "../runtime/EngineConsole";
 import { Entity } from "../scene/Entity";
 
@@ -86,16 +87,13 @@ function appendNodeEntities(
 
 function getNodeMatrix(node: GLTFNodePostprocessed): Mat4 {
   if (node.matrix?.length === 16) {
-    return new Float32Array(node.matrix) as Mat4;
+    return copyMat4(node.matrix);
   }
 
   const translation = toVec3(node.translation, [0, 0, 0]);
   const rotation = toQuat(node.rotation, [0, 0, 0, 1]);
   const scale = toVec3(node.scale, [1, 1, 1]);
-  let matrix = createTranslationMatrix(translation);
-  matrix = mat4.multiply(matrix, createQuaternionMatrix(rotation));
-  matrix = mat4.multiply(matrix, createScaleMatrix(scale));
-  return matrix;
+  return composeMatrix(translation, rotation, scale);
 }
 
 function createPrimitiveMesh(primitive: GLTFMeshPrimitivePostprocessed): MeshComponent | undefined {
@@ -162,54 +160,4 @@ function toQuat(
   }
 
   return [value[0], value[1], value[2], value[3]];
-}
-
-function createTranslationMatrix(translation: readonly [number, number, number]): Mat4 {
-  return new Float32Array([
-    1, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 1, 0,
-    translation[0], translation[1], translation[2], 1,
-  ]) as Mat4;
-}
-
-function createScaleMatrix(scale: readonly [number, number, number]): Mat4 {
-  return new Float32Array([
-    scale[0], 0, 0, 0,
-    0, scale[1], 0, 0,
-    0, 0, scale[2], 0,
-    0, 0, 0, 1,
-  ]) as Mat4;
-}
-
-function createQuaternionMatrix(rotation: readonly [number, number, number, number]): Mat4 {
-  const [x, y, z, w] = rotation;
-  const xx = x * x;
-  const yy = y * y;
-  const zz = z * z;
-  const xy = x * y;
-  const xz = x * z;
-  const yz = y * z;
-  const wx = w * x;
-  const wy = w * y;
-  const wz = w * z;
-
-  return new Float32Array([
-    1 - 2 * (yy + zz),
-    2 * (xy + wz),
-    2 * (xz - wy),
-    0,
-    2 * (xy - wz),
-    1 - 2 * (xx + zz),
-    2 * (yz + wx),
-    0,
-    2 * (xz + wy),
-    2 * (yz - wx),
-    1 - 2 * (xx + yy),
-    0,
-    0,
-    0,
-    0,
-    1,
-  ]) as Mat4;
 }
