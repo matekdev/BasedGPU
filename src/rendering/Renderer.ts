@@ -1,7 +1,7 @@
 import { engineConsole } from "../runtime/EngineConsole";
 import { GpuTexture } from "./GpuTexture";
 
-const clearColor: GPUColor = { r: 0.08, g: 0.1, b: 0.13, a: 1 };
+const clearColor: GPUColor = { r: 0.08, g: 0.08, b: 0.085, a: 1 };
 
 export class Renderer {
   readonly device: GPUDevice;
