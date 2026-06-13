@@ -102,7 +102,8 @@ export class SceneRenderer {
       const resource = this.getGpuMesh(mesh);
       this.uniformBuffer.write(modelViewProjection);
       renderPass.setVertexBuffer(0, resource.vertexBuffer.gpu);
-      renderPass.draw(resource.vertexCount);
+      renderPass.setIndexBuffer(resource.indexBuffer.gpu, "uint32");
+      renderPass.drawIndexed(resource.indexCount);
     }
 
     renderPass.end();

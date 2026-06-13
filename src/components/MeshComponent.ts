@@ -5,7 +5,10 @@ export class MeshComponent implements Component {
 
   readonly componentType = MeshComponent.componentType;
 
-  constructor(readonly vertices: Float32Array) {}
+  constructor(
+    readonly vertices: Float32Array,
+    readonly indices: Uint32Array,
+  ) {}
 
   static triangle(): MeshComponent {
     return new MeshComponent(
@@ -14,6 +17,7 @@ export class MeshComponent implements Component {
         -0.55, -0.4, 0.36, 0.72, 0.45,
         0.55, -0.4, 0.45, 0.62, 0.9,
       ]),
+      new Uint32Array([0, 1, 2]),
     );
   }
 }

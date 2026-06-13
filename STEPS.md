@@ -18,8 +18,8 @@ Build:
 - [x] Add a `GpuBuffer` helper for vertex, index, uniform, and storage buffers
 - [x] Add a `GpuTexture` helper for color, depth, and sampled textures
 - [x] Split scene data from GPU resources
-- [ ] Add depth buffering
-- [ ] Add indexed mesh rendering
+- [x] Add depth buffering
+- [x] Add indexed mesh rendering
 - [ ] Add per-object uniform data
 - [ ] Handle resize by recreating size-dependent resources
 
