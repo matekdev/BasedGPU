@@ -69,6 +69,11 @@ export class SceneRenderer {
         targets: [{ format }],
       },
       primitive: { topology: "triangle-list" },
+      depthStencil: {
+        format: "depth24plus",
+        depthWriteEnabled: true,
+        depthCompare: "less",
+      },
     });
   }
 
@@ -79,10 +84,11 @@ export class SceneRenderer {
 
     const { renderer } = this;
     const viewProjection = this.getViewProjection(scene);
-    const { encoder, view } = renderer.beginFrame();
+    const { encoder, view, depthView } = renderer.beginFrame();
 
     const renderPass = encoder.beginRenderPass({
       colorAttachments: [renderer.makeClearColorAttachment(view)],
+      depthStencilAttachment: renderer.makeDepthAttachment(depthView),
     });
 
     renderPass.setPipeline(this.pipeline);

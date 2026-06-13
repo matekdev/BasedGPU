@@ -1,4 +1,5 @@
 import { engineConsole } from "../runtime/EngineConsole";
+import { GpuTexture } from "./GpuTexture";
 
 const clearColor: GPUColor = { r: 0.08, g: 0.1, b: 0.13, a: 1 };
 
@@ -6,6 +7,7 @@ export class Renderer {
   readonly device: GPUDevice;
   readonly format: GPUTextureFormat;
   private readonly context: GPUCanvasContext;
+  private depthTexture?: GpuTexture;
 
   private constructor(
     device: GPUDevice,
@@ -44,11 +46,11 @@ export class Renderer {
     return new Renderer(device, context, format, canvas);
   }
 
-  beginFrame(): { encoder: GPUCommandEncoder; view: GPUTextureView } {
+  beginFrame(): { encoder: GPUCommandEncoder; view: GPUTextureView; depthView: GPUTextureView } {
     this.resizeCanvas();
     const encoder = this.device.createCommandEncoder();
     const view = this.context.getCurrentTexture().createView();
-    return { encoder, view };
+    return { encoder, view, depthView: this.depthTexture!.view };
   }
 
   endFrame(encoder: GPUCommandEncoder): void {
@@ -64,12 +66,14 @@ export class Renderer {
     const width = Math.max(1, Math.floor(this.canvas.clientWidth * devicePixelRatio));
     const height = Math.max(1, Math.floor(this.canvas.clientHeight * devicePixelRatio));
 
-    if (this.canvas.width === width && this.canvas.height === height) {
+    if (this.canvas.width === width && this.canvas.height === height && this.depthTexture) {
       return;
     }
 
     this.canvas.width = width;
     this.canvas.height = height;
+    this.depthTexture?.destroy();
+    this.depthTexture = GpuTexture.depth(this.device, width, height);
   }
 
   makeClearColorAttachment(view: GPUTextureView): GPURenderPassColorAttachment {
@@ -78,6 +82,15 @@ export class Renderer {
       clearValue: clearColor,
       loadOp: "clear",
       storeOp: "store",
+    };
+  }
+
+  makeDepthAttachment(view: GPUTextureView): GPURenderPassDepthStencilAttachment {
+    return {
+      view,
+      depthClearValue: 1.0,
+      depthLoadOp: "clear",
+      depthStoreOp: "store",
     };
   }
 }
