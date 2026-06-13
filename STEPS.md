@@ -20,7 +20,8 @@ Build:
 - [x] Split scene data from GPU resources
 - [x] Add depth buffering
 - [x] Add indexed mesh rendering
-- [ ] Add per-object uniform data
+- [x] Add per-object transform data
+- [x] Expand per-object uniform data for scalable object state before glTF loading and materials
 - [ ] Handle resize by recreating size-dependent resources
 
 Learn:

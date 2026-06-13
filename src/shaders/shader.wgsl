@@ -8,16 +8,16 @@ struct VertexOutput {
   @location(0) color: vec3f,
 };
 
-struct TransformUniform {
+struct ObjectUniform {
   modelViewProjection: mat4x4f,
 };
 
-@group(0) @binding(0) var<uniform> transformUniform: TransformUniform;
+@group(0) @binding(0) var<uniform> objectUniform: ObjectUniform;
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
   var output: VertexOutput;
-  output.position = transformUniform.modelViewProjection * vec4f(input.position, 0.0, 1.0);
+  output.position = objectUniform.modelViewProjection * vec4f(input.position, 0.0, 1.0);
   output.color = input.color;
   return output;
 }

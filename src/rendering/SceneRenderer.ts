@@ -9,12 +9,15 @@ import { Renderer } from "./Renderer";
 import shaderSource from "../shaders/shader.wgsl?raw";
 
 const vertexStride = 5 * Float32Array.BYTES_PER_ELEMENT;
+const objectUniformByteSize = 16 * Float32Array.BYTES_PER_ELEMENT;
 
 export class SceneRenderer {
   private renderer?: Renderer;
   private pipeline?: GPURenderPipeline;
-  private uniformBuffer?: GpuBuffer;
-  private uniformBindGroup?: GPUBindGroup;
+  private objectUniformBuffer?: GpuBuffer;
+  private objectBindGroup?: GPUBindGroup;
+  private objectUniformStride = 0;
+  private objectUniformCapacity = 0;
   private readonly meshResources = new WeakMap<MeshComponent, GpuMesh>();
 
   constructor(private readonly canvas: HTMLCanvasElement) {}
@@ -24,21 +27,20 @@ export class SceneRenderer {
     const { device, format } = renderer;
 
     this.renderer = renderer;
-    this.uniformBuffer = GpuBuffer.uniform(device, 16 * Float32Array.BYTES_PER_ELEMENT);
+    this.objectUniformStride = this.alignTo(
+      objectUniformByteSize,
+      device.limits.minUniformBufferOffsetAlignment,
+    );
+    this.createObjectUniformResources(1);
 
     const bindGroupLayout = device.createBindGroupLayout({
       entries: [
         {
           binding: 0,
           visibility: GPUShaderStage.VERTEX,
-          buffer: { type: "uniform" },
+          buffer: { type: "uniform", hasDynamicOffset: true },
         },
       ],
-    });
-
-    this.uniformBindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [{ binding: 0, resource: { buffer: this.uniformBuffer.gpu } }],
     });
 
     const shaderModule = device.createShaderModule({ code: shaderSource });
@@ -75,15 +77,30 @@ export class SceneRenderer {
         depthCompare: "less",
       },
     });
+
+    this.objectBindGroup = device.createBindGroup({
+      layout: bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: this.requireObjectUniformBuffer().gpu,
+            size: objectUniformByteSize,
+          },
+        },
+      ],
+    });
   }
 
   render(scene: Scene): void {
-    if (!this.renderer || !this.pipeline || !this.uniformBuffer || !this.uniformBindGroup) {
+    if (!this.renderer || !this.pipeline || !this.objectBindGroup) {
       return;
     }
 
     const { renderer } = this;
     const viewProjection = this.getViewProjection(scene);
+    const renderables = scene.findEntities(MeshComponent, TransformComponent);
+    this.ensureObjectUniformCapacity(renderables.length);
     const { encoder, view, depthView } = renderer.beginFrame();
 
     const renderPass = encoder.beginRenderPass({
@@ -92,16 +109,17 @@ export class SceneRenderer {
     });
 
     renderPass.setPipeline(this.pipeline);
-    renderPass.setBindGroup(0, this.uniformBindGroup);
 
-    for (const entity of scene.findEntities(MeshComponent, TransformComponent)) {
+    for (const [index, entity] of renderables.entries()) {
       const mesh = entity.require(MeshComponent);
       const transform = entity.require(TransformComponent);
       const modelViewProjection = mat4.multiply(viewProjection, transform.matrix);
+      const objectUniformOffset = index * this.objectUniformStride;
 
       const resource = this.getGpuMesh(mesh);
-      this.uniformBuffer.write(modelViewProjection);
+      this.requireObjectUniformBuffer().write(modelViewProjection, objectUniformOffset);
       renderPass.setVertexBuffer(0, resource.vertexBuffer.gpu);
+      renderPass.setBindGroup(0, this.objectBindGroup, [objectUniformOffset]);
       renderPass.setIndexBuffer(resource.indexBuffer.gpu, "uint32");
       renderPass.drawIndexed(resource.indexCount);
     }
@@ -130,5 +148,43 @@ export class SceneRenderer {
     const gpuMesh = new GpuMesh(this.renderer.device, mesh);
     this.meshResources.set(mesh, gpuMesh);
     return gpuMesh;
+  }
+
+  private createObjectUniformResources(capacity: number): void {
+    if (!this.renderer) throw new Error("Renderer is not initialized.");
+
+    this.objectUniformBuffer?.destroy();
+    this.objectUniformCapacity = capacity;
+    this.objectUniformBuffer = GpuBuffer.uniform(
+      this.renderer.device,
+      this.objectUniformStride * capacity,
+    );
+  }
+
+  private ensureObjectUniformCapacity(objectCount: number): void {
+    if (objectCount <= this.objectUniformCapacity) return;
+
+    this.createObjectUniformResources(objectCount);
+    this.objectBindGroup = this.renderer?.device.createBindGroup({
+      layout: this.pipeline!.getBindGroupLayout(0),
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: this.requireObjectUniformBuffer().gpu,
+            size: objectUniformByteSize,
+          },
+        },
+      ],
+    });
+  }
+
+  private requireObjectUniformBuffer(): GpuBuffer {
+    if (!this.objectUniformBuffer) throw new Error("Object uniform buffer is not initialized.");
+    return this.objectUniformBuffer;
+  }
+
+  private alignTo(value: number, alignment: number): number {
+    return Math.ceil(value / alignment) * alignment;
   }
 }
