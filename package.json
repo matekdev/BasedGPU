@@ -9,6 +9,8 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@loaders.gl/core": "^4.4.2",
+    "@loaders.gl/gltf": "^4.4.2",
     "tweakpane": "^4.0.5",
     "wgpu-matrix": "^3.4.0"
   },

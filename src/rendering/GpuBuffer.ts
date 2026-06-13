@@ -20,7 +20,7 @@ export class GpuBuffer {
     return gpuBuffer;
   }
 
-  static index(device: GPUDevice, data: Uint32Array): GpuBuffer {
+  static index(device: GPUDevice, data: Uint16Array | Uint32Array): GpuBuffer {
     const gpuBuffer = new GpuBuffer(
       device,
       device.createBuffer({
@@ -52,7 +52,7 @@ export class GpuBuffer {
     );
   }
 
-  write(data: Float32Array | Uint32Array, offset = 0): void {
+  write(data: ArrayBufferView, offset = 0): void {
     this.device.queue.writeBuffer(
       this.gpu,
       offset,

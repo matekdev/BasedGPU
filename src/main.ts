@@ -1,8 +1,7 @@
 import "./styles.css";
-import { MeshComponent } from "./components/MeshComponent";
-import { TransformComponent } from "./components/TransformComponent";
+import { loadGltfEntities } from "./assets/GltfLoader";
+import { engineConsole } from "./runtime/EngineConsole";
 import { Application } from "./runtime/Application";
-import { Entity } from "./scene/Entity";
 import { Scene } from "./scene/Scene";
 
 const appElement = document.querySelector<HTMLDivElement>("#app");
@@ -15,12 +14,21 @@ const canvasElement = document.createElement("canvas");
 canvasElement.className = "viewport";
 appElement.append(canvasElement);
 
-const scene = new Scene();
-const triangle = new Entity("Triangle");
+async function bootstrap(): Promise<void> {
+  const scene = new Scene();
+  const application = new Application(canvasElement, scene);
 
-triangle.add(new TransformComponent());
-triangle.add(MeshComponent.triangle());
-scene.add(triangle);
+  try {
+    const entities = await loadGltfEntities("/assets/models/box.glb");
 
-const application = new Application(canvasElement, scene);
-void application.start();
+    for (const entity of entities) {
+      scene.add(entity);
+    }
+  } catch (error) {
+    engineConsole.error("Failed to load glTF scene", "main", error);
+  }
+
+  await application.start();
+}
+
+void bootstrap();

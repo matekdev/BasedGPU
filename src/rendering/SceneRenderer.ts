@@ -8,7 +8,7 @@ import { GpuMesh } from "./GpuMesh";
 import { Renderer } from "./Renderer";
 import shaderSource from "../shaders/shader.wgsl?raw";
 
-const vertexStride = 5 * Float32Array.BYTES_PER_ELEMENT;
+const vertexStride = 6 * Float32Array.BYTES_PER_ELEMENT;
 const objectUniformByteSize = 16 * Float32Array.BYTES_PER_ELEMENT;
 
 export class SceneRenderer {
@@ -55,10 +55,10 @@ export class SceneRenderer {
           {
             arrayStride: vertexStride,
             attributes: [
-              { shaderLocation: 0, offset: 0, format: "float32x2" },
+              { shaderLocation: 0, offset: 0, format: "float32x3" },
               {
                 shaderLocation: 1,
-                offset: 2 * Float32Array.BYTES_PER_ELEMENT,
+                offset: 3 * Float32Array.BYTES_PER_ELEMENT,
                 format: "float32x3",
               },
             ],
@@ -120,7 +120,13 @@ export class SceneRenderer {
       this.requireObjectUniformBuffer().write(modelViewProjection, objectUniformOffset);
       renderPass.setVertexBuffer(0, resource.vertexBuffer.gpu);
       renderPass.setBindGroup(0, this.objectBindGroup, [objectUniformOffset]);
-      renderPass.setIndexBuffer(resource.indexBuffer.gpu, "uint32");
+
+      if (!resource.indexBuffer || !resource.indexFormat) {
+        renderPass.draw(resource.vertexCount);
+        continue;
+      }
+
+      renderPass.setIndexBuffer(resource.indexBuffer.gpu, resource.indexFormat);
       renderPass.drawIndexed(resource.indexCount);
     }
 
