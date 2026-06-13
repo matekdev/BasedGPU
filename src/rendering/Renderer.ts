@@ -40,10 +40,11 @@ export class Renderer {
     }
 
     const format = navigator.gpu.getPreferredCanvasFormat();
-    context.configure({ device, format, alphaMode: "opaque" });
     engineConsole.info("WebGPU renderer initialized", "Renderer", { format });
 
-    return new Renderer(device, context, format, canvas);
+    const renderer = new Renderer(device, context, format, canvas);
+    renderer.resizeCanvas();
+    return renderer;
   }
 
   beginFrame(): { encoder: GPUCommandEncoder; view: GPUTextureView; depthView: GPUTextureView } {
@@ -72,6 +73,11 @@ export class Renderer {
 
     this.canvas.width = width;
     this.canvas.height = height;
+    this.context.configure({
+      device: this.device,
+      format: this.format,
+      alphaMode: "opaque",
+    });
     this.depthTexture?.destroy();
     this.depthTexture = GpuTexture.depth(this.device, width, height);
   }

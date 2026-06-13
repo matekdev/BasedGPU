@@ -22,7 +22,7 @@ Build:
 - [x] Add indexed mesh rendering
 - [x] Add per-object transform data
 - [x] Expand per-object uniform data for scalable object state before glTF loading and materials
-- [ ] Handle resize by recreating size-dependent resources
+- [x] Handle resize by recreating size-dependent resources
 
 Learn:
 
