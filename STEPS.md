@@ -15,9 +15,9 @@ Before adding visual features, make the renderer easier to extend.
 Build:
 
 - [x] Create a `Renderer` abstraction that owns the device, queue, surface format, and frame lifecycle
-- [ ] Add a `GpuBuffer` helper for vertex, index, uniform, and storage buffers
-- [ ] Add a `GpuTexture` helper for color, depth, and sampled textures
-- [ ] Split scene data from GPU resources
+- [x] Add a `GpuBuffer` helper for vertex, index, uniform, and storage buffers
+- [x] Add a `GpuTexture` helper for color, depth, and sampled textures
+- [x] Split scene data from GPU resources
 - [ ] Add depth buffering
 - [ ] Add indexed mesh rendering
 - [ ] Add per-object uniform data

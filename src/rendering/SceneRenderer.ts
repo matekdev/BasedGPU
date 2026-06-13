@@ -4,22 +4,18 @@ import { MeshComponent } from "../components/MeshComponent";
 import { TransformComponent } from "../components/TransformComponent";
 import type { Scene } from "../scene/Scene";
 import { GpuBuffer } from "./GpuBuffer";
+import { GpuMesh } from "./GpuMesh";
 import { Renderer } from "./Renderer";
 import shaderSource from "../shaders/shader.wgsl?raw";
 
 const vertexStride = 5 * Float32Array.BYTES_PER_ELEMENT;
-
-type MeshResource = {
-  vertexBuffer: GpuBuffer;
-  vertexCount: number;
-};
 
 export class SceneRenderer {
   private renderer?: Renderer;
   private pipeline?: GPURenderPipeline;
   private uniformBuffer?: GpuBuffer;
   private uniformBindGroup?: GPUBindGroup;
-  private readonly meshResources = new WeakMap<MeshComponent, MeshResource>();
+  private readonly meshResources = new WeakMap<MeshComponent, GpuMesh>();
 
   constructor(private readonly canvas: HTMLCanvasElement) {}
 
@@ -97,7 +93,7 @@ export class SceneRenderer {
       const transform = entity.require(TransformComponent);
       const modelViewProjection = mat4.multiply(viewProjection, transform.matrix);
 
-      const resource = this.getMeshResource(mesh);
+      const resource = this.getGpuMesh(mesh);
       this.uniformBuffer.write(modelViewProjection);
       renderPass.setVertexBuffer(0, resource.vertexBuffer.gpu);
       renderPass.draw(resource.vertexCount);
@@ -118,18 +114,14 @@ export class SceneRenderer {
     return camera.getViewProjection(transform, this.renderer.aspectRatio);
   }
 
-  private getMeshResource(mesh: MeshComponent): MeshResource {
-    const existingResource = this.meshResources.get(mesh);
-    if (existingResource) return existingResource;
+  private getGpuMesh(mesh: MeshComponent): GpuMesh {
+    const existing = this.meshResources.get(mesh);
+    if (existing) return existing;
 
     if (!this.renderer) throw new Error("Renderer is not initialized.");
 
-    const resource = {
-      vertexBuffer: GpuBuffer.vertex(this.renderer.device, mesh.vertices),
-      vertexCount: mesh.vertices.length / 5,
-    };
-
-    this.meshResources.set(mesh, resource);
-    return resource;
+    const gpuMesh = new GpuMesh(this.renderer.device, mesh);
+    this.meshResources.set(mesh, gpuMesh);
+    return gpuMesh;
   }
 }
