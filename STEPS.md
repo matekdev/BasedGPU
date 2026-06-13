@@ -26,11 +26,11 @@ Build:
 
 Learn:
 
-- [ ] Understand WebGPU bind groups and bind group layouts
-- [ ] Understand pipeline layout compatibility
-- [ ] Understand GPU buffer usage flags
-- [ ] Understand alignment rules for uniform buffers
-- [ ] Understand why modern APIs make resource state explicit
+- [x] Understand WebGPU bind groups and bind group layouts
+- [skipped] Understand pipeline layout compatibility
+- [x] Understand GPU buffer usage flags
+- [x] Understand alignment rules for uniform buffers
+- [x] Understand why modern APIs make resource state explicit
 
 Portfolio value:
 
