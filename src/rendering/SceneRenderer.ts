@@ -2,21 +2,19 @@ import { mat4, type Mat4 } from "wgpu-matrix";
 import { CameraComponent } from "../components/CameraComponent";
 import { MeshComponent } from "../components/MeshComponent";
 import { TransformComponent } from "../components/TransformComponent";
-import { engineConsole } from "../runtime/EngineConsole";
 import type { Scene } from "../scene/Scene";
-import shaderSource from "./shader.wgsl?raw";
+import { Renderer, asGpuBufferSource } from "./Renderer";
+import shaderSource from "../shaders/shader.wgsl?raw";
 
 const vertexStride = 5 * Float32Array.BYTES_PER_ELEMENT;
-const clearColor: GPUColor = { r: 0.08, g: 0.1, b: 0.13, a: 1 };
 
 type MeshResource = {
   vertexBuffer: GPUBuffer;
   vertexCount: number;
 };
 
-export class WebGpuRenderer {
-  private device?: GPUDevice;
-  private context?: GPUCanvasContext;
+export class SceneRenderer {
+  private renderer?: Renderer;
   private pipeline?: GPURenderPipeline;
   private uniformBuffer?: GPUBuffer;
   private uniformBindGroup?: GPUBindGroup;
@@ -25,34 +23,10 @@ export class WebGpuRenderer {
   constructor(private readonly canvas: HTMLCanvasElement) {}
 
   async initialize(): Promise<void> {
-    if (!navigator.gpu) {
-      engineConsole.error("WebGPU is not available in this browser", "Renderer");
-      throw new Error("WebGPU is not available in this browser.");
-    }
+    const renderer = await Renderer.create(this.canvas);
+    const { device, format } = renderer;
 
-    const adapter = await navigator.gpu.requestAdapter();
-
-    if (!adapter) {
-      engineConsole.error("No WebGPU adapter was found", "Renderer");
-      throw new Error("No WebGPU adapter was found.");
-    }
-
-    const device = await adapter.requestDevice();
-    const context = this.canvas.getContext("webgpu");
-
-    if (!context) {
-      engineConsole.error("Could not create a WebGPU canvas context", "Renderer");
-      throw new Error("Could not create a WebGPU canvas context.");
-    }
-
-    const format = navigator.gpu.getPreferredCanvasFormat();
-    context.configure({ device, format, alphaMode: "opaque" });
-    engineConsole.info("WebGPU renderer initialized", "Renderer", {
-      format,
-    });
-
-    this.device = device;
-    this.context = context;
+    this.renderer = renderer;
     this.uniformBuffer = device.createBuffer({
       size: 16 * Float32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -105,29 +79,16 @@ export class WebGpuRenderer {
   }
 
   render(scene: Scene): void {
-    if (
-      !this.device ||
-      !this.context ||
-      !this.pipeline ||
-      !this.uniformBuffer ||
-      !this.uniformBindGroup
-    ) {
+    if (!this.renderer || !this.pipeline || !this.uniformBuffer || !this.uniformBindGroup) {
       return;
     }
 
-    this.resizeCanvas();
-
+    const { renderer } = this;
     const viewProjection = this.getViewProjection(scene);
-    const encoder = this.device.createCommandEncoder();
+    const { encoder, view } = renderer.beginFrame();
+
     const renderPass = encoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: this.context.getCurrentTexture().createView(),
-          clearValue: clearColor,
-          loadOp: "clear",
-          storeOp: "store",
-        },
-      ],
+      colorAttachments: [renderer.makeClearColorAttachment(view)],
     });
 
     renderPass.setPipeline(this.pipeline);
@@ -136,13 +97,10 @@ export class WebGpuRenderer {
     for (const entity of scene.findEntities(MeshComponent, TransformComponent)) {
       const mesh = entity.require(MeshComponent);
       const transform = entity.require(TransformComponent);
-      const modelViewProjection = mat4.multiply(
-        viewProjection,
-        transform.matrix,
-      );
+      const modelViewProjection = mat4.multiply(viewProjection, transform.matrix);
 
       const resource = this.getMeshResource(mesh);
-      this.device.queue.writeBuffer(
+      renderer.device.queue.writeBuffer(
         this.uniformBuffer,
         0,
         asGpuBufferSource(modelViewProjection),
@@ -152,76 +110,36 @@ export class WebGpuRenderer {
     }
 
     renderPass.end();
-    this.device.queue.submit([encoder.finish()]);
+    renderer.endFrame(encoder);
   }
 
   private getViewProjection(scene: Scene): Mat4 {
-    const cameraEntity = scene.findEntities(
-      CameraComponent,
-      TransformComponent,
-    )[0];
+    if (!this.renderer) return mat4.identity();
 
-    if (!cameraEntity) {
-      return mat4.identity();
-    }
+    const cameraEntity = scene.findEntities(CameraComponent, TransformComponent)[0];
+    if (!cameraEntity) return mat4.identity();
 
     const camera = cameraEntity.require(CameraComponent);
     const transform = cameraEntity.require(TransformComponent);
-    const aspectRatio = this.canvas.width / this.canvas.height;
-    return camera.getViewProjection(transform, aspectRatio);
+    return camera.getViewProjection(transform, this.renderer.aspectRatio);
   }
 
   private getMeshResource(mesh: MeshComponent): MeshResource {
     const existingResource = this.meshResources.get(mesh);
+    if (existingResource) return existingResource;
 
-    if (existingResource) {
-      return existingResource;
-    }
+    if (!this.renderer) throw new Error("Renderer is not initialized.");
 
-    if (!this.device) {
-      throw new Error("Renderer is not initialized.");
-    }
-
-    const vertexBuffer = this.device.createBuffer({
+    const { device } = this.renderer;
+    const vertexBuffer = device.createBuffer({
       size: mesh.vertices.byteLength,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
 
-    this.device.queue.writeBuffer(
-      vertexBuffer,
-      0,
-      asGpuBufferSource(mesh.vertices),
-    );
+    device.queue.writeBuffer(vertexBuffer, 0, asGpuBufferSource(mesh.vertices));
 
-    const resource = {
-      vertexBuffer,
-      vertexCount: mesh.vertices.length / 5,
-    };
-
+    const resource = { vertexBuffer, vertexCount: mesh.vertices.length / 5 };
     this.meshResources.set(mesh, resource);
     return resource;
   }
-
-  private resizeCanvas(): void {
-    const devicePixelRatio = window.devicePixelRatio || 1;
-    const width = Math.max(
-      1,
-      Math.floor(this.canvas.clientWidth * devicePixelRatio),
-    );
-    const height = Math.max(
-      1,
-      Math.floor(this.canvas.clientHeight * devicePixelRatio),
-    );
-
-    if (this.canvas.width === width && this.canvas.height === height) {
-      return;
-    }
-
-    this.canvas.width = width;
-    this.canvas.height = height;
-  }
-}
-
-function asGpuBufferSource(data: Float32Array): GPUAllowSharedBufferSource {
-  return data as unknown as GPUAllowSharedBufferSource;
 }

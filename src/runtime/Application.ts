@@ -1,10 +1,10 @@
-import { WebGpuRenderer } from "../rendering/WebGpuRenderer";
+import { SceneRenderer } from "../rendering/SceneRenderer";
 import { CameraController } from "./CameraController";
 import { engineConsole } from "./EngineConsole";
 import type { Scene } from "../scene/Scene";
 
 export class Application {
-  private readonly renderer: WebGpuRenderer;
+  private readonly renderer: SceneRenderer;
   private readonly cameraController: CameraController;
   private previousTimestamp = 0;
 
@@ -12,7 +12,7 @@ export class Application {
     canvas: HTMLCanvasElement,
     private readonly scene: Scene,
   ) {
-    this.renderer = new WebGpuRenderer(canvas);
+    this.renderer = new SceneRenderer(canvas);
     this.cameraController = new CameraController(canvas, scene);
   }
 
