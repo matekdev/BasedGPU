@@ -2,6 +2,7 @@ import { mat4, type Mat4 } from "wgpu-matrix";
 import { CameraComponent } from "../components/CameraComponent";
 import { MeshComponent, meshVertexFloatCount } from "../components/MeshComponent";
 import { TransformComponent } from "../components/TransformComponent";
+import { createNormalMatrix, normalizeDirection } from "../math/transforms";
 import type { Scene } from "../scene/Scene";
 import { GpuBuffer } from "./GpuBuffer";
 import { GpuMaterial } from "./GpuMaterial";
@@ -11,13 +12,19 @@ import { GpuTexture } from "./GpuTexture";
 import shaderSource from "../shaders/shader.wgsl?raw";
 
 const vertexStride = meshVertexFloatCount * Float32Array.BYTES_PER_ELEMENT;
-const objectUniformByteSize = 16 * Float32Array.BYTES_PER_ELEMENT;
+const objectUniformFloatCount = 32;
+const objectUniformByteSize = objectUniformFloatCount * Float32Array.BYTES_PER_ELEMENT;
+const sceneUniformByteSize = 8 * Float32Array.BYTES_PER_ELEMENT;
+const directionalLightDirection = new Float32Array([0.4, 0.8, 0.35, 0]);
+const directionalLightColor = new Float32Array([1, 1, 1, 1]);
 
 export class SceneRenderer {
   private renderer?: Renderer;
   private pipeline?: GPURenderPipeline;
   private objectUniformBuffer?: GpuBuffer;
   private objectBindGroup?: GPUBindGroup;
+  private sceneUniformBuffer?: GpuBuffer;
+  private sceneBindGroup?: GPUBindGroup;
   private objectUniformStride = 0;
   private objectUniformCapacity = 0;
   private fallbackTexture?: GpuTexture;
@@ -47,6 +54,15 @@ export class SceneRenderer {
         },
       ],
     });
+    const sceneBindGroupLayout = device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: { type: "uniform" },
+        },
+      ],
+    });
     const materialBindGroupLayout = device.createBindGroupLayout({
       entries: [
         {
@@ -65,7 +81,7 @@ export class SceneRenderer {
     const shaderModule = device.createShaderModule({ code: shaderSource });
     this.pipeline = device.createRenderPipeline({
       layout: device.createPipelineLayout({
-        bindGroupLayouts: [bindGroupLayout, materialBindGroupLayout],
+        bindGroupLayouts: [bindGroupLayout, sceneBindGroupLayout, materialBindGroupLayout],
       }),
       vertex: {
         module: shaderModule,
@@ -124,6 +140,20 @@ export class SceneRenderer {
         },
       ],
     });
+    this.sceneUniformBuffer = GpuBuffer.uniform(device, sceneUniformByteSize);
+    this.sceneUniformBuffer.write(this.createSceneUniformData());
+    this.sceneBindGroup = device.createBindGroup({
+      layout: sceneBindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: this.sceneUniformBuffer.gpu,
+            size: sceneUniformByteSize,
+          },
+        },
+      ],
+    });
     this.fallbackTexture = GpuTexture.solidColor(device, [1, 1, 1, 1]);
     this.fallbackSampler = device.createSampler({
       addressModeU: "repeat",
@@ -136,7 +166,7 @@ export class SceneRenderer {
   }
 
   render(scene: Scene): void {
-    if (!this.renderer || !this.pipeline || !this.objectBindGroup) {
+    if (!this.renderer || !this.pipeline || !this.objectBindGroup || !this.sceneBindGroup) {
       return;
     }
 
@@ -156,15 +186,16 @@ export class SceneRenderer {
     for (const [index, entity] of renderables.entries()) {
       const mesh = entity.require(MeshComponent);
       const transform = entity.require(TransformComponent);
-      const modelViewProjection = mat4.multiply(viewProjection, transform.matrix);
       const objectUniformOffset = index * this.objectUniformStride;
+      const objectUniformData = this.createObjectUniformData(viewProjection, transform.matrix);
 
       const resource = this.getGpuMesh(mesh);
       const material = this.getGpuMaterial(mesh);
-      this.requireObjectUniformBuffer().write(modelViewProjection, objectUniformOffset);
+      this.requireObjectUniformBuffer().write(objectUniformData, objectUniformOffset);
       renderPass.setVertexBuffer(0, resource.vertexBuffer.gpu);
       renderPass.setBindGroup(0, this.objectBindGroup, [objectUniformOffset]);
-      renderPass.setBindGroup(1, material.bindGroup);
+      renderPass.setBindGroup(1, this.sceneBindGroup);
+      renderPass.setBindGroup(2, material.bindGroup);
 
       if (!resource.indexBuffer || !resource.indexFormat) {
         renderPass.draw(resource.vertexCount);
@@ -212,7 +243,7 @@ export class SceneRenderer {
     const gpuMaterial = new GpuMaterial(
       this.renderer.device,
       mesh,
-      this.pipeline.getBindGroupLayout(1),
+      this.pipeline.getBindGroupLayout(2),
       this.fallbackTexture,
       this.fallbackSampler,
     );
@@ -252,6 +283,21 @@ export class SceneRenderer {
   private requireObjectUniformBuffer(): GpuBuffer {
     if (!this.objectUniformBuffer) throw new Error("Object uniform buffer is not initialized.");
     return this.objectUniformBuffer;
+  }
+
+  private createSceneUniformData(): Float32Array {
+    const direction = normalizeDirection(directionalLightDirection);
+    const data = new Float32Array(8);
+    data.set(direction, 0);
+    data.set(directionalLightColor, 4);
+    return data;
+  }
+
+  private createObjectUniformData(viewProjection: Mat4, modelMatrix: Mat4): Float32Array {
+    const data = new Float32Array(objectUniformFloatCount);
+    data.set(mat4.multiply(viewProjection, modelMatrix), 0);
+    data.set(createNormalMatrix(modelMatrix), 16);
+    return data;
   }
 
   private alignTo(value: number, alignment: number): number {
