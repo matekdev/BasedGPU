@@ -54,10 +54,10 @@ Build:
 - [x] Add glTF 2.0 loading
 - [x] Support vertex attributes for position, normal, tangent, UV, and color
 - [x] Add index buffers
-- [ ] Add texture loading
-- [ ] Add sampler creation
-- [ ] Parse material data from glTF
-- [ ] Add a simple asset cache
+- [x] Add texture loading
+- [x] Add sampler creation
+- [x] Parse material data from glTF
+- [x] Add a simple asset cache
 
 Recommended library:
 

@@ -19,7 +19,7 @@ async function bootstrap(): Promise<void> {
   const application = new Application(canvasElement, scene);
 
   try {
-    const entities = await loadGltfEntities("/assets/models/box.glb");
+    const entities = await loadGltfEntities("/assets/models/helmet.glb");
 
     for (const entity of entities) {
       scene.add(entity);

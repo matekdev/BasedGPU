@@ -4,8 +4,10 @@ import { MeshComponent, meshVertexFloatCount } from "../components/MeshComponent
 import { TransformComponent } from "../components/TransformComponent";
 import type { Scene } from "../scene/Scene";
 import { GpuBuffer } from "./GpuBuffer";
+import { GpuMaterial } from "./GpuMaterial";
 import { GpuMesh } from "./GpuMesh";
 import { Renderer } from "./Renderer";
+import { GpuTexture } from "./GpuTexture";
 import shaderSource from "../shaders/shader.wgsl?raw";
 
 const vertexStride = meshVertexFloatCount * Float32Array.BYTES_PER_ELEMENT;
@@ -18,7 +20,10 @@ export class SceneRenderer {
   private objectBindGroup?: GPUBindGroup;
   private objectUniformStride = 0;
   private objectUniformCapacity = 0;
+  private fallbackTexture?: GpuTexture;
+  private fallbackSampler?: GPUSampler;
   private readonly meshResources = new WeakMap<MeshComponent, GpuMesh>();
+  private readonly materialResources = new WeakMap<MeshComponent, GpuMaterial>();
 
   constructor(private readonly canvas: HTMLCanvasElement) {}
 
@@ -42,11 +47,25 @@ export class SceneRenderer {
         },
       ],
     });
+    const materialBindGroupLayout = device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.FRAGMENT,
+          sampler: { type: "filtering" },
+        },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.FRAGMENT,
+          texture: { sampleType: "float" },
+        },
+      ],
+    });
 
     const shaderModule = device.createShaderModule({ code: shaderSource });
     this.pipeline = device.createRenderPipeline({
       layout: device.createPipelineLayout({
-        bindGroupLayouts: [bindGroupLayout],
+        bindGroupLayouts: [bindGroupLayout, materialBindGroupLayout],
       }),
       vertex: {
         module: shaderModule,
@@ -105,6 +124,15 @@ export class SceneRenderer {
         },
       ],
     });
+    this.fallbackTexture = GpuTexture.solidColor(device, [1, 1, 1, 1]);
+    this.fallbackSampler = device.createSampler({
+      addressModeU: "repeat",
+      addressModeV: "repeat",
+      magFilter: "linear",
+      minFilter: "linear",
+      mipmapFilter: "nearest",
+      lodMaxClamp: 0,
+    });
   }
 
   render(scene: Scene): void {
@@ -132,9 +160,11 @@ export class SceneRenderer {
       const objectUniformOffset = index * this.objectUniformStride;
 
       const resource = this.getGpuMesh(mesh);
+      const material = this.getGpuMaterial(mesh);
       this.requireObjectUniformBuffer().write(modelViewProjection, objectUniformOffset);
       renderPass.setVertexBuffer(0, resource.vertexBuffer.gpu);
       renderPass.setBindGroup(0, this.objectBindGroup, [objectUniformOffset]);
+      renderPass.setBindGroup(1, material.bindGroup);
 
       if (!resource.indexBuffer || !resource.indexFormat) {
         renderPass.draw(resource.vertexCount);
@@ -169,6 +199,25 @@ export class SceneRenderer {
     const gpuMesh = new GpuMesh(this.renderer.device, mesh);
     this.meshResources.set(mesh, gpuMesh);
     return gpuMesh;
+  }
+
+  private getGpuMaterial(mesh: MeshComponent): GpuMaterial {
+    const existing = this.materialResources.get(mesh);
+    if (existing) return existing;
+
+    if (!this.renderer || !this.pipeline || !this.fallbackTexture || !this.fallbackSampler) {
+      throw new Error("Material resources are not initialized.");
+    }
+
+    const gpuMaterial = new GpuMaterial(
+      this.renderer.device,
+      mesh,
+      this.pipeline.getBindGroupLayout(1),
+      this.fallbackTexture,
+      this.fallbackSampler,
+    );
+    this.materialResources.set(mesh, gpuMaterial);
+    return gpuMaterial;
   }
 
   private createObjectUniformResources(capacity: number): void {

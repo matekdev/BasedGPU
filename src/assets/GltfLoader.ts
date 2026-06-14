@@ -7,7 +7,7 @@ import {
   type GLTFPostprocessed,
 } from "@loaders.gl/gltf";
 import { mat4, type Mat4 } from "wgpu-matrix";
-import { MeshComponent } from "../components/MeshComponent";
+import { MeshComponent, type MeshImage, type MeshSamplerSettings, type MeshTexture } from "../components/MeshComponent";
 import { TransformComponent } from "../components/TransformComponent";
 import { composeMatrix, copyMat4 } from "../math/transforms";
 import { engineConsole } from "../runtime/EngineConsole";
@@ -17,6 +17,13 @@ const defaultNormal = [0, 0, 1] as const;
 const defaultTangent = [1, 0, 0, 1] as const;
 const defaultUv = [0, 0] as const;
 const white = [1, 1, 1, 1] as const;
+
+type GltfSampler = {
+  wrapS?: number;
+  wrapT?: number;
+  magFilter?: number;
+  minFilter?: number;
+};
 
 export async function loadGltfEntities(url: string): Promise<Entity[]> {
   const response = await fetch(url);
@@ -28,16 +35,20 @@ export async function loadGltfEntities(url: string): Promise<Entity[]> {
   const data = await parse(response, GLTFLoader, {
     gltf: {
       loadBuffers: true,
-      loadImages: false,
+      loadImages: true,
       decompressMeshes: true,
+    },
+    image: {
+      type: "data",
     },
   });
   const document = postProcessGLTF(data);
   const entities: Entity[] = [];
   const scene = getDefaultScene(document);
+  const textureCache = new Map<string, Promise<MeshTexture | undefined>>();
 
   for (const node of scene?.nodes ?? []) {
-    appendNodeEntities(node, mat4.identity(), entities);
+    await appendNodeEntities(node, mat4.identity(), entities, textureCache);
   }
 
   engineConsole.info("Loaded glTF scene", "GltfLoader", {
@@ -59,19 +70,20 @@ function getDefaultScene(document: GLTFPostprocessed) {
   return document.scenes[0];
 }
 
-function appendNodeEntities(
+async function appendNodeEntities(
   node: GLTFNodePostprocessed,
   parentMatrix: Mat4,
   entities: Entity[],
-): void {
+  textureCache: Map<string, Promise<MeshTexture | undefined>>,
+): Promise<void> {
   const worldMatrix = mat4.multiply(parentMatrix, getNodeMatrix(node));
 
   if (node.mesh) {
-    node.mesh.primitives.forEach((primitive, primitiveIndex) => {
-      const mesh = createPrimitiveMesh(primitive);
+    for (const [primitiveIndex, primitive] of node.mesh.primitives.entries()) {
+      const mesh = await createPrimitiveMesh(primitive, textureCache);
 
       if (!mesh) {
-        return;
+        continue;
       }
 
       const entity = new Entity(`${node.name ?? node.mesh?.name ?? "Mesh"}_${primitiveIndex}`);
@@ -80,11 +92,11 @@ function appendNodeEntities(
       entity.add(transform);
       entity.add(mesh);
       entities.push(entity);
-    });
+    }
   }
 
   for (const child of node.children ?? []) {
-    appendNodeEntities(child, worldMatrix, entities);
+    await appendNodeEntities(child, worldMatrix, entities, textureCache);
   }
 }
 
@@ -99,7 +111,10 @@ function getNodeMatrix(node: GLTFNodePostprocessed): Mat4 {
   return composeMatrix(translation, rotation, scale);
 }
 
-function createPrimitiveMesh(primitive: GLTFMeshPrimitivePostprocessed): MeshComponent | undefined {
+async function createPrimitiveMesh(
+  primitive: GLTFMeshPrimitivePostprocessed,
+  textureCache: Map<string, Promise<MeshTexture | undefined>>,
+): Promise<MeshComponent | undefined> {
   if (primitive.mode !== undefined && primitive.mode !== 4) {
     engineConsole.warn("Skipping unsupported primitive mode", "GltfLoader", {
       mode: primitive.mode,
@@ -121,6 +136,7 @@ function createPrimitiveMesh(primitive: GLTFMeshPrimitivePostprocessed): MeshCom
   const colors = primitive.attributes.COLOR_0?.value;
   const colorComponentCount = getAttributeComponentCount(primitive.attributes.COLOR_0?.type, 4);
   const materialColor = primitive.material?.pbrMetallicRoughness?.baseColorFactor ?? white;
+  const baseColorTexture = await loadBaseColorTexture(primitive, textureCache);
   const vertices = new Float32Array(vertexCount * 16);
 
   for (let vertexIndex = 0; vertexIndex < vertexCount; vertexIndex += 1) {
@@ -140,23 +156,23 @@ function createPrimitiveMesh(primitive: GLTFMeshPrimitivePostprocessed): MeshCom
     vertices[vertexOffset + 9] = Number(tangents?.[tangentOffset + 3] ?? defaultTangent[3]);
     vertices[vertexOffset + 10] = Number(uvs?.[uvOffset] ?? defaultUv[0]);
     vertices[vertexOffset + 11] = Number(uvs?.[uvOffset + 1] ?? defaultUv[1]);
-    vertices[vertexOffset + 12] = getAttributeValue(colors, vertexIndex, colorComponentCount, 0, materialColor[0]);
-    vertices[vertexOffset + 13] = getAttributeValue(colors, vertexIndex, colorComponentCount, 1, materialColor[1]);
-    vertices[vertexOffset + 14] = getAttributeValue(colors, vertexIndex, colorComponentCount, 2, materialColor[2]);
-    vertices[vertexOffset + 15] = getAttributeValue(colors, vertexIndex, colorComponentCount, 3, materialColor[3] ?? 1);
+    vertices[vertexOffset + 12] = getAttributeValue(colors, vertexIndex, colorComponentCount, 0, 1) * materialColor[0];
+    vertices[vertexOffset + 13] = getAttributeValue(colors, vertexIndex, colorComponentCount, 1, 1) * materialColor[1];
+    vertices[vertexOffset + 14] = getAttributeValue(colors, vertexIndex, colorComponentCount, 2, 1) * materialColor[2];
+    vertices[vertexOffset + 15] = getAttributeValue(colors, vertexIndex, colorComponentCount, 3, 1) * (materialColor[3] ?? 1);
   }
 
   const indexValues = primitive.indices?.value;
 
   if (!indexValues) {
-    return new MeshComponent(vertices);
+    return new MeshComponent(vertices, undefined, { baseColorTexture });
   }
 
   if (indexValues instanceof Uint32Array) {
-    return new MeshComponent(vertices, new Uint32Array(indexValues));
+    return new MeshComponent(vertices, new Uint32Array(indexValues), { baseColorTexture });
   }
 
-  return new MeshComponent(vertices, new Uint16Array(indexValues));
+  return new MeshComponent(vertices, new Uint16Array(indexValues), { baseColorTexture });
 }
 
 function toVec3(
@@ -206,4 +222,160 @@ function getAttributeValue(
   }
 
   return Number(values[(vertexIndex * componentCount) + componentIndex]);
+}
+
+async function loadBaseColorTexture(
+  primitive: GLTFMeshPrimitivePostprocessed,
+  textureCache: Map<string, Promise<MeshTexture | undefined>>,
+): Promise<MeshTexture | undefined> {
+  const texture = primitive.material?.pbrMetallicRoughness?.baseColorTexture?.texture;
+  const source = texture?.source;
+
+  if (!texture || !source) {
+    return undefined;
+  }
+
+  const cachedTexture = textureCache.get(texture.id);
+
+  if (cachedTexture) {
+    return cachedTexture;
+  }
+
+  const texturePromise = createMeshTexture(texture.sampler, source);
+  textureCache.set(texture.id, texturePromise);
+  return texturePromise;
+}
+
+async function createMeshTexture(
+  sampler: GltfSampler | undefined,
+  source: unknown,
+): Promise<MeshTexture | undefined> {
+  const image = await toMeshImage(source);
+
+  if (!image) {
+    engineConsole.warn("Skipping unsupported base color texture source", "GltfLoader");
+    return undefined;
+  }
+
+  return {
+    image,
+    sampler: createSamplerSettings(sampler),
+  };
+}
+
+async function toMeshImage(source: unknown): Promise<MeshImage | undefined> {
+  if (!source || typeof source !== "object") {
+    return undefined;
+  }
+
+  const imageSource = source as {
+    image?: MeshImage;
+    bufferView?: {
+      data: Uint8Array;
+    };
+    mimeType?: string;
+  };
+
+  if (isMeshImage(imageSource.image)) {
+    return imageSource.image;
+  }
+
+  const data = imageSource.bufferView?.data;
+
+  if (!data) {
+    return undefined;
+  }
+
+  const blob = new Blob([data.slice().buffer], {
+    type: imageSource.mimeType ?? "image/png",
+  });
+  const image = await loadImageElement(blob);
+
+  try {
+    return readImagePixels(image);
+  } finally {
+    URL.revokeObjectURL(image.src);
+  }
+}
+
+function isMeshImage(image: unknown): image is MeshImage {
+  if (!image || typeof image !== "object") {
+    return false;
+  }
+
+  const candidate = image as MeshImage;
+  return ArrayBuffer.isView(candidate.data)
+    && candidate.data.BYTES_PER_ELEMENT === 1
+    && Number.isFinite(candidate.width)
+    && Number.isFinite(candidate.height);
+}
+
+function readImagePixels(image: HTMLImageElement): MeshImage {
+  const canvas = document.createElement("canvas");
+  canvas.width = Number(image.width);
+  canvas.height = Number(image.height);
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Could not create a canvas context.");
+  }
+
+  context.drawImage(image, 0, 0);
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+  return {
+    data: pixels.data,
+    width: pixels.width,
+    height: pixels.height,
+  };
+}
+
+function createSamplerSettings(sampler: GltfSampler | undefined): MeshSamplerSettings {
+  return {
+    addressModeU: getAddressMode(sampler?.wrapS),
+    addressModeV: getAddressMode(sampler?.wrapT),
+    magFilter: getMagFilter(sampler?.magFilter),
+    minFilter: getMinFilter(sampler?.minFilter),
+    mipmapFilter: "nearest",
+    lodMaxClamp: 0,
+  };
+}
+
+function getAddressMode(wrapMode: number | undefined): GPUAddressMode {
+  switch (wrapMode) {
+    case 33071:
+      return "clamp-to-edge";
+    case 33648:
+      return "mirror-repeat";
+    default:
+      return "repeat";
+  }
+}
+
+function getMagFilter(filter: number | undefined): GPUFilterMode {
+  return filter === 9728 ? "nearest" : "linear";
+}
+
+function getMinFilter(filter: number | undefined): GPUFilterMode {
+  switch (filter) {
+    case 9728:
+    case 9984:
+    case 9986:
+      return "nearest";
+    default:
+      return "linear";
+  }
+}
+
+function loadImageElement(blob: Blob): Promise<HTMLImageElement> {
+  const image = new Image();
+  const url = URL.createObjectURL(blob);
+  image.src = url;
+
+  return new Promise((resolve, reject) => {
+    image.onload = () => resolve(image);
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to decode embedded glTF image."));
+    };
+  });
 }

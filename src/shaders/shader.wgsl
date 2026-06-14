@@ -9,6 +9,7 @@ struct VertexInput {
 struct VertexOutput {
   @builtin(position) position: vec4f,
   @location(0) color: vec4f,
+  @location(1) uv: vec2f,
 };
 
 struct ObjectUniform {
@@ -16,16 +17,19 @@ struct ObjectUniform {
 };
 
 @group(0) @binding(0) var<uniform> objectUniform: ObjectUniform;
+@group(1) @binding(0) var baseColorSampler: sampler;
+@group(1) @binding(1) var baseColorTexture: texture_2d<f32>;
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
   var output: VertexOutput;
   output.position = objectUniform.modelViewProjection * vec4f(input.position, 1.0);
   output.color = input.color;
+  output.uv = input.uv;
   return output;
 }
 
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-  return input.color;
+  return textureSample(baseColorTexture, baseColorSampler, input.uv);
 }
